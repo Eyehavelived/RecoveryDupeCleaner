@@ -2,6 +2,7 @@ import typing
 import re
 from typing import Self
 
+from helper import text_reader_helper
 import cv2
 import PIL
 import imagehash
