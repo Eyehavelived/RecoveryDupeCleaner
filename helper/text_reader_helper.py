@@ -1,6 +1,10 @@
 """
 """
+import typing
 import os
+import extract_msg
+import openpyxl
+import xlrd
 
 import pdfplumber
 from docx import Document
@@ -45,7 +49,48 @@ class TextReaderHelper:
     @staticmethod
     @error_handler
     def read_doc(path):
-        
+        """
+        Reads legacy microsoft word documents
+        """
         doc = Document(path)
         return "\n".join([p.text for p in doc.paragraphs])
 
+    @staticmethod
+    @error_handler
+    def read_msg(path):
+        """
+        Reads a msg file - likely a file export of Microsoft Outlook saved emails
+        """
+        msg = extract_msg.Message(path)
+        return msg.body or ""
+
+    @staticmethod
+    @error_handler
+    def read_xls(path, extension):
+        """
+        Reads an excel file as a text file to hash downstream
+        """
+        xls_loader = openpyxl.load_workbook if extension == "xlsx" else xlrd.open_workbook
+        workbook = xls_loader(path, data_only=True)
+        text = ""
+        for sheet in workbook:
+            for row in sheet.iter_rows(values_only=True):
+                text += " ".join([str(cell) if cell is not None else "" for cell in row]) + "\n"
+        return text
+
+    def read_file(self, path, extension) -> str:
+        """
+        Helper method for reading files and returns the stringified value of its contents
+        """
+        if (extension == "doc" or extension == "docx"):
+            return self.read_doc(path)
+        elif (extension == "xls" or extension == "xlsx"):
+            return self.read_xls(path, extension)
+        elif extension == "msg":
+            return self.read_msg
+        elif extension == "pdf": 
+            return self.read_pdf
+        elif extension == "txt":
+            return self.read_txt
+        else:
+            raise RuntimeError(f"Unexpected extension received: {extension}")
