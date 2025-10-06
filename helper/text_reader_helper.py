@@ -1,7 +1,7 @@
 """
+Helper for reading text files
 """
 import typing
-import os
 import extract_msg
 import openpyxl
 import xlrd
@@ -40,6 +40,9 @@ class TextReaderHelper:
     @staticmethod
     @error_handler
     def read_pdf(path):
+        """
+        Reads pdf files
+        """
         text = ""
         with pdfplumber.open(path) as pdf:
             for page in pdf.pages:
