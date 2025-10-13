@@ -6,6 +6,7 @@ from helper import text_reader_helper
 import cv2
 import PIL
 import imagehash
+from simhash import Simhash
 
 import nltk
 from nltk.corpus import words
@@ -23,13 +24,14 @@ class File():
     path: str
     hash_value: str
     is_bad_file: bool = False
+    extension = None
 
     def __init__(self, path: str):
-        extension = path.split(".")[-1]
-        if self._is_correct_file_type(extension):
+        self.extension = path.split(".")[-1]
+        if self._is_correct_file_type(self.extension):
             self.path = path
         else:
-            raise RuntimeError(f"Incorrect filetype {extension} for class \
+            raise RuntimeError(f"Incorrect filetype {self.extension} for class \
                                {self.__class__.__name__}")
 
     def _is_correct_file_type(self, extension: str) -> bool:
@@ -133,26 +135,33 @@ class Text(File):
     Extracts the string values within the files to hash. 
     Does not compare images store within them, so additional file size comparisons would be useful.
 
-    For text files, we pre-process them by extracting the dictionary words, and then zip together
-    every 2 word to preserve some degree of order. This way, we can get a hashvalue for the actual
-    content of the text files and not allow corrupted headers and noise to interfere with the 
-    hashing
+    For text files, we pre-process them by extracting the dictionary words, and then combine
+    together 2 word chunks to preserve some degree of order. This way, we can get a hashvalue 
+    for the actual content of the text files and not allow corrupted headers and noise to
+    interfere with the hashing
     """
     allowed_formats = ["doc", "docx", "xlsx", "xls", "pdf", "txt"]
     def __init__(self, path):
         super().__init__(path)
 
-    def _extract_partially_ordered_text(self, text):
+    def _extract_partially_ordered_text(self, text: str):
         text = text.lower()
         tokens = re.findall(r"\b[a-z]+\b", text)  # only alphabetic words
         dictionary_words = [t for t in tokens if t in word_set]
 
         # Zip every 2 words together to create partially ordered tokens
         # No need to add " " because it's going to get hashed anyway
-        return [''.join(x) for x in zip(dictionary_words[0::2], dictionary_words[1::2])]
+        output = []
+        for i in range(len(dictionary_words)-1):
+            output.append("".join([dictionary_words[i], dictionary_words[i+1]]))
+        return output
 
     def _hash(self, contents=None):
-        super()._hash(contents)
+        helper = text_reader_helper.TextReaderHelper()
+        extracted_text = helper.read_file(self.path, self.extension)
+        contents = self._extract_partially_ordered_text(extracted_text)
+        
+        self.hash_value = Simhash(contents).value
 
 class Other(File):
     """

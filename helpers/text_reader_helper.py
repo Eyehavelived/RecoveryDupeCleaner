@@ -14,6 +14,23 @@ class TextReaderHelper:
     """
     Helper for reading text Files
     """
+    def read_file(self, path, extension) -> str:
+        """
+        Helper method for reading files and returns the stringified value of its contents
+        """
+        if (extension == "doc" or extension == "docx"):
+            return self.read_doc(path)
+        elif (extension == "xls" or extension == "xlsx"):
+            return self.read_xls(path, extension)
+        elif extension == "msg":
+            return self.read_msg
+        elif extension == "pdf": 
+            return self.read_pdf
+        elif extension == "txt":
+            return self.read_txt
+        else:
+            raise RuntimeError(f"Unexpected extension received: {extension}")
+
     @staticmethod
     def error_handler(func):
         """
@@ -81,19 +98,3 @@ class TextReaderHelper:
                 text += " ".join([str(cell) if cell is not None else "" for cell in row]) + "\n"
         return text
 
-    def read_file(self, path, extension) -> str:
-        """
-        Helper method for reading files and returns the stringified value of its contents
-        """
-        if (extension == "doc" or extension == "docx"):
-            return self.read_doc(path)
-        elif (extension == "xls" or extension == "xlsx"):
-            return self.read_xls(path, extension)
-        elif extension == "msg":
-            return self.read_msg
-        elif extension == "pdf": 
-            return self.read_pdf
-        elif extension == "txt":
-            return self.read_txt
-        else:
-            raise RuntimeError(f"Unexpected extension received: {extension}")
