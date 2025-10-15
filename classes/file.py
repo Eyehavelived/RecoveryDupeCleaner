@@ -1,5 +1,6 @@
 import typing
 import re
+import copy
 from typing import Self
 
 from helper import text_reader_helper
@@ -39,12 +40,25 @@ class File():
         class_val: str = dictionary.pop("__type__")
         class_type: File = eval(class_val)
         cls.__dict__ = dictionary
+
+        # In theory, each child in the duplicate list should not have anything in their own
+        # duplicate list, so there should be no infinite loops occuring
         for i, child in enumerate(cls.duplicates):
             cls.duplicates[i] = class_type.from_dict(child)
         return cls
 
-    def to_dict(self):
-        pass
+    def to_dict(self) -> dict:
+        """
+        Returns a dictionary version of itself, to be json-fied
+        """
+        output = copy.deepcopy(self.__dict__)
+        output["__type__"] = self.__class__
+
+        # In theory, each child in the duplicate list should not have anything in their own
+        # duplicate list, so there should be no infinite loops occuring
+        for i, child in enumerate(self.duplicates):
+            output["duplicates"][i] = child.to_dict()
+        return output
 
     def _is_correct_file_type(self, extension: str) -> bool:
         """
