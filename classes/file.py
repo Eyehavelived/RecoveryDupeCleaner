@@ -34,6 +34,18 @@ class File():
             raise RuntimeError(f"Incorrect filetype {self.extension} for class \
                                {self.__class__.__name__}")
 
+    @classmethod
+    def from_dict(cls, dictionary: dict):
+        class_val: str = dictionary.pop("__type__")
+        class_type: File = eval(class_val)
+        cls.__dict__ = dictionary
+        for i, child in enumerate(cls.duplicates):
+            cls.duplicates[i] = class_type.from_dict(child)
+        return cls
+
+    def to_dict(self):
+        pass
+
     def _is_correct_file_type(self, extension: str) -> bool:
         """
         Checks if the class object is correctly assigned (should not happen)
