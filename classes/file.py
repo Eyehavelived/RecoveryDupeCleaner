@@ -1,16 +1,18 @@
 import typing
 import re
 import copy
+import os
+import shutil
 from typing import Self
 
-from helper import text_reader_helper
 import cv2
 import PIL
 import imagehash
-from simhash import Simhash
-
 import nltk
+from simhash import Simhash
 from nltk.corpus import words
+
+from helpers import text_reader_helper
 
 nltk.download("words")
 word_set = set(words.words())
@@ -60,12 +62,6 @@ class File():
             output["duplicates"][i] = child.to_dict()
         return output
 
-    def _is_correct_file_type(self, extension: str) -> bool:
-        """
-        Checks if the class object is correctly assigned (should not happen)
-        """
-        return extension in self.allowed_formats
-
     def add(self, file: Self) -> None:
         """
         Appends a duplicate file to the duplicate list
@@ -80,8 +76,33 @@ class File():
         dictionary swap handled externally
         """
         file.duplicates = self.duplicates
-        self.duplicates.clear()
+        self.duplicates = []
         file.add(self)
+
+    def move(self, new_path) -> None:
+        """
+        Moves the file and updates path property accordingly
+        """
+        shutil.move(self.path, new_path)
+        self.path = new_path
+
+    def rename(self, new_name) -> None:
+        """
+        Renames the File in the directory and updates path accordingly
+        """
+        path_list = self.path.split("/")
+        path_list.remove(-1)
+        path_list.append(".".join([new_name, self.extension]))
+        new_path = "/".join(path_list)
+
+        os.rename(self.path, new_path)
+        self.path = new_path
+
+    def _is_correct_file_type(self, extension: str) -> bool:
+        """
+        Checks if the class object is correctly assigned (should not happen)
+        """
+        return extension in self.allowed_formats
 
     def _hash(self, contents=None) -> None:
         """
@@ -100,7 +121,7 @@ class File():
         """
         return self.hash_value
 
-    def is_bad_file(self) -> bool:
+    def is_bad(self) -> bool:
         """
         returns a boolean value for whether this File object has been marked as a bad file
         """
