@@ -6,6 +6,7 @@ import extract_msg
 import openpyxl
 import xlrd
 
+import html2text
 import pdfplumber
 from docx import Document
 
@@ -24,10 +25,12 @@ class TextReaderHelper:
             return self.read_xls(path, extension)
         elif extension == "msg":
             return self.read_msg
-        elif extension == "pdf": 
+        elif extension == "pdf":
             return self.read_pdf
         elif extension == "txt":
             return self.read_txt
+        elif extension == "html":
+            return self.read_html
         else:
             raise RuntimeError(f"Unexpected extension received: {extension}")
 
@@ -44,6 +47,17 @@ class TextReaderHelper:
             except Exception as e:
                 raise RuntimeError(f'Unexpected Error occured: {e}')
         return wrapper
+
+    @staticmethod
+    @error_handler
+    def read_html(path):
+        """
+        Reads a html file
+        """
+        with open(path, "r", encoding="utf-8") as f:
+            html_content = f.read()
+
+        return html2text.html2text(html_content)
 
     @staticmethod
     @error_handler

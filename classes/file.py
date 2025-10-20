@@ -1,8 +1,11 @@
 import typing
-import re
+
 import copy
+import json
 import os
+import re
 import shutil
+import subprocess
 from typing import Self
 
 import cv2
@@ -13,6 +16,7 @@ from simhash import Simhash
 from nltk.corpus import words
 
 from helpers import text_reader_helper
+from date_time import DateTime
 
 nltk.download("words")
 word_set = set(words.words())
@@ -22,12 +26,13 @@ class File():
     Generic file object
     """
     allowed_formats: list[str] = []
-    metadata = {}
+    metadata: dict
     duplicates: list[Self] = []
     path: str
     hash_value: str
     is_bad_file: bool = False
     extension = None
+    date_time: DateTime
 
     def __init__(self, path: str):
         self.extension = path.split(".")[-1]
@@ -36,9 +41,15 @@ class File():
         else:
             raise RuntimeError(f"Incorrect filetype {self.extension} for class \
                                {self.__class__.__name__}")
+        self._set_metadata()
+        self._set_hash()
+
 
     @classmethod
     def from_dict(cls, dictionary: dict):
+        """
+        Creates the class from a dictionary after parsing a json file
+        """
         class_val: str = dictionary.pop("__type__")
         class_type: File = eval(class_val)
         cls.__dict__ = dictionary
@@ -47,6 +58,10 @@ class File():
         # duplicate list, so there should be no infinite loops occuring
         for i, child in enumerate(cls.duplicates):
             cls.duplicates[i] = class_type.from_dict(child)
+
+        # convert dictionary values of date time to DateTime object
+        cls.date_time = DateTime.from_dict(cls.date_time)
+
         return cls
 
     def to_dict(self) -> dict:
@@ -60,6 +75,10 @@ class File():
         # duplicate list, so there should be no infinite loops occuring
         for i, child in enumerate(self.duplicates):
             output["duplicates"][i] = child.to_dict()
+
+        # Change date_time object to dictionary
+        output["date_time"] = output["date_time"].to_dict()
+
         return output
 
     def add(self, file: Self) -> None:
@@ -69,15 +88,11 @@ class File():
         if file not in self.duplicates:
             self.duplicates.append(file)
 
-    def swap(self, file: Self) -> None:
+    def get_hash(self) -> str:
         """
-        If it turns out that the current file is a duplicate, swap its position with the 
-        other file so that it and all its duplicates are appended to the new file. Hash 
-        dictionary swap handled externally
+        Retrieves the hashvalue of the File
         """
-        file.duplicates = self.duplicates
-        self.duplicates = []
-        file.add(self)
+        return self.hash_value
 
     def move(self, new_path) -> None:
         """
@@ -98,13 +113,33 @@ class File():
         os.rename(self.path, new_path)
         self.path = new_path
 
+    def swap(self, file: Self) -> None:
+        """
+        If it turns out that the current file is a duplicate, swap its position with the 
+        other file so that it and all its duplicates are appended to the new file. Hash 
+        dictionary swap handled externally
+        """
+        file.duplicates = self.duplicates
+        self.duplicates = []
+        file.add(self)
+
+    def _set_datetime(self) -> None:
+        """
+        Modify Date = `yyyy:mm:dd HH:MM:SS`
+        """
+
+        modify_date: str = self.metadata["Modify Date"]
+        modify_date.replace(" ", ":")
+        self.date_time = DateTime(*modify_date.split(":"))
+
+
     def _is_correct_file_type(self, extension: str) -> bool:
         """
         Checks if the class object is correctly assigned (should not happen)
         """
         return extension in self.allowed_formats
 
-    def _hash(self, contents=None) -> None:
+    def _set_hash(self, contents=None) -> None:
         """
         Dummy method
         Creates hash value for similarity comparison, and sets it to the hash_value
@@ -114,27 +149,28 @@ class File():
         file_name = self.path.split("/")[-1]
         self.hash_value = file_name
 
-
-    def get_hash(self) -> str:
-        """
-        Retrieves the hashvalue of the File
-        """
-        return self.hash_value
-
     def is_bad(self) -> bool:
         """
         returns a boolean value for whether this File object has been marked as a bad file
         """
         return self.is_bad_file
 
+    def _is_thumbnail(self) -> bool:
+        return self.path.split("/")[-1][0] == "t"
+
+    def _set_metadata(self) -> None:
+        result = subprocess.run(["exiftool", "-j", self.path], capture_output=True, text=True)
+        self.metadata = json.loads(result.stdout)[0]
+
+
 class Image(File):
     """
     Object type where similarity comparisons are made primarily based on perceptual Hashing, 
     followed by metadata analysis
     """
-    allowed_formats = ["png", "jpg", "heic"]
+    allowed_formats = ["ai", "dng", "gif", "heic", "ico", "jpg", "png", "psd", "tif", "webp"]
 
-    def _hash(self, contents: PIL.Image) -> None:
+    def _set_hash(self, contents: PIL.Image) -> None:
         """
         Generates hash value of the image
         """
@@ -152,7 +188,7 @@ class Video(Image):
     results across different videos. This is to cover the edge cases where the first or last 
     frame of the video are blurry or black patches from human behaviour.
     """
-    allowed_formats = ["wmv", "mov", "3gp", "mp4"]
+    allowed_formats = ["3gp", "asf", "avi", "mov", "mp4", "swf", "wmv"]
 
     def _extract_frame(self) -> PIL.Image:
         """
@@ -172,10 +208,10 @@ class Video(Image):
 
         raise RuntimeError(f"Unable to grab frame from video file. Path: {self.path} ")
 
-    def _hash(self, contents=None) -> str:
+    def _set_hash(self, contents=None) -> str:
         frame = self._extract_frame()
 
-        super()._hash(frame)
+        super()._set_hash(frame)
 
 class Text(File):
     """
@@ -187,7 +223,8 @@ class Text(File):
     for the actual content of the text files and not allow corrupted headers and noise to
     interfere with the hashing
     """
-    allowed_formats = ["doc", "docx", "xlsx", "xls", "pdf", "txt"]
+    allowed_formats = ["doc", "docx", "xlsx", "xls", "pdf", "txt", "xls", "xlsx", "msg"]
+
     def __init__(self, path):
         super().__init__(path)
 
@@ -203,11 +240,11 @@ class Text(File):
             output.append("".join([dictionary_words[i], dictionary_words[i+1]]))
         return output
 
-    def _hash(self, contents=None):
+    def _set_hash(self, contents=None):
         helper = text_reader_helper.TextReaderHelper()
         extracted_text = helper.read_file(self.path, self.extension)
         contents = self._extract_partially_ordered_text(extracted_text)
-        
+
         self.hash_value = Simhash(contents).value
 
 class Other(File):
@@ -215,7 +252,7 @@ class Other(File):
     For other files that will not have pre-processing
     Will just be sorted into a folder with other files of the same type
     """
-    allowed_formats = ["swf", "zip", "rar"]
+    allowed_formats = ["swf", "zip", "rar", "db", "ds_store", "lnk", "zip", "html"]
 
     def __init__(self, path):
         super().__init__(path)
