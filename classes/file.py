@@ -25,7 +25,6 @@ class File():
     """
     Generic file object
     """
-    allowed_formats: list[str] = []
     metadata: dict
     duplicates: list[Self] = []
     path: str
@@ -43,6 +42,7 @@ class File():
                                {self.__class__.__name__}")
         self._set_metadata()
         self._set_hash()
+        self._set_datetime()
 
 
     @classmethod
@@ -100,6 +100,10 @@ class File():
         """
         return self.is_bad_file
 
+    @staticmethod
+    def get_allowed_formats() -> list:
+        return []
+
     def move(self, new_path) -> None:
         """
         Moves the file and updates path property accordingly
@@ -143,7 +147,7 @@ class File():
         """
         Checks if the class object is correctly assigned (should not happen)
         """
-        return extension in self.allowed_formats
+        return extension in self.get_allowed_formats()
 
     def _set_hash(self, contents=None) -> None:
         """
@@ -168,7 +172,6 @@ class Image(File):
     Object type where similarity comparisons are made primarily based on perceptual Hashing, 
     followed by metadata analysis
     """
-    allowed_formats = ["ai", "dng", "gif", "heic", "ico", "jpg", "png", "psd", "tif", "webp"]
 
     def _set_hash(self, contents: PIL.Image) -> None:
         """
@@ -177,6 +180,10 @@ class Image(File):
         hash_size = 8
 
         self.hash = str(imagehash.phash(contents, hash_size))
+
+    @staticmethod
+    def get_allowed_formats() -> list:
+        return ["ai", "dng", "gif", "heic", "ico", "jpg", "png", "psd", "tif", "webp"]
 
 class Video(Image):
     """
@@ -188,8 +195,6 @@ class Video(Image):
     results across different videos. This is to cover the edge cases where the first or last 
     frame of the video are blurry or black patches from human behaviour.
     """
-    allowed_formats = ["3gp", "asf", "avi", "mov", "mp4", "swf", "wmv"]
-
     def _extract_frame(self) -> PIL.Image:
         """
         Extracts the middle frame of a video to hash and recommend for similarity comparisons
@@ -213,6 +218,10 @@ class Video(Image):
 
         super()._set_hash(frame)
 
+    @staticmethod
+    def get_allowed_formats() -> list:
+        return ["3gp", "asf", "avi", "mov", "mp4", "wmv"]
+
 class Text(File):
     """
     Extracts the string values within the files to hash. 
@@ -223,12 +232,7 @@ class Text(File):
     for the actual content of the text files and not allow corrupted headers and noise to
     interfere with the hashing
     """
-    allowed_formats = ["doc", "docx", "xlsx", "xls", "pdf", "txt", "xls", "xlsx", "msg"]
-
-    def __init__(self, path):
-        super().__init__(path)
-
-    def _extract_partially_ordered_text(self, text: str):
+    def _extract_partially_ordered_text(self, text: str) -> list[str]:
         text = text.lower()
         tokens = re.findall(r"\b[a-z]+\b", text)  # only alphabetic words
         dictionary_words = [t for t in tokens if t in word_set]
@@ -240,19 +244,24 @@ class Text(File):
             output.append("".join([dictionary_words[i], dictionary_words[i+1]]))
         return output
 
-    def _set_hash(self, contents=None):
+    def _set_hash(self, contents=None) -> None:
         helper = text_reader_helper.TextReaderHelper()
         extracted_text = helper.read_file(self.path, self.extension)
         contents = self._extract_partially_ordered_text(extracted_text)
 
         self.hash_value = Simhash(contents).value
 
+    @staticmethod
+    def get_allowed_formats() -> list:
+        return ["doc", "docx", "xlsx", "xls", "pdf", "txt", "xls", "xlsx", "msg"]
+
 class Other(File):
     """
     For other files that will not have pre-processing
     Will just be sorted into a folder with other files of the same type
     """
-    allowed_formats = ["swf", "zip", "rar", "db", "ds_store", "lnk", "zip", "html"]
-
-    def __init__(self, path):
-        super().__init__(path)
+    def _is_correct_file_type(self, extension) -> bool:
+        """
+        Accepts all file types
+        """
+        return True
