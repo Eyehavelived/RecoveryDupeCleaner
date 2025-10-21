@@ -85,9 +85,9 @@ class DupeCleaner:
         print(f'type of date_directories_str: {type(date_directories_str)}')
         self.date_directories = json.loads(date_directories_str) if date_directories_str else self.date_directories
 
-        for key, val in previous_state["files"]:
+        for key, val in previous_state["files"].items():
             file_dict = json.loads(val)
-            for hash_key, file_string in file_dict:
+            for hash_key, file_string in file_dict.items():
                 file_dict[hash_key] = File.from_dict(file_string)
             self.state["files"][key] = file_dict
         
@@ -118,8 +118,8 @@ class DupeCleaner:
         Iterates through the pre-processed date_directories and builds directories for every
         given date
         """
-        for year, month_dict in self.date_directories[file_type]:
-            for month, day_list in month_dict:
+        for year, month_dict in self.date_directories[file_type].items():
+            for month, day_list in month_dict.items():
                 for day in day_list:
                     path = Path("/".join([parent_path, year, month, day]))
                     path.mkdir(parents=True, exist_ok=True)
@@ -130,9 +130,11 @@ class DupeCleaner:
             json.dump(data, f)
 
     def _prepare_json(self) -> dict:
-        output: dict[str, dict] = {}
-        for hash_value, file in self.files.items():
-            output[hash_value] = file.to_dict()
+        for file_type, dictionary in self.state["files"].items():
+            for hash_value, file in dictionary.items():
+                dictionary[hash_value] = file.to_dict()
+        
+        return self.state
     
 
 def main(path, log_path=None):
