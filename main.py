@@ -43,15 +43,14 @@ class DupeCleaner:
     files: dict[str, dict[str, File]] = {
         "Images": images,
         "Videos": videos,
-        "Text": text,
-        "Other": other
+        "Texts": text,
+        "Others": other
     }
     date_directories: dict[str, dict[str, dict[str, list[str]]]] = {
         "Image": {},
         "Video": {},
         "Text": {},
-        "Other": {},
-        "File": {}
+        "Other": {}
     }
     state = {
         "state": "",
@@ -73,8 +72,31 @@ class DupeCleaner:
         else:
             self.log = "/".join([root_path, "logs.json"])
 
+    def resume(self):
+        status = self.state["state"]
+        if status == "Preprocessing":
+            self.pre_process()
+        elif status == "Sorting":
+            self.sort()
+
+    def next(self):
+        status = self.state["state"]
+        if status == "":
+            self.pre_process()
+        if status == "Prepare Sorting":
+            self.prepare_folders()
+        elif status == "Begin Sorting":
+            self.sort()
+        elif status == "Sort Complete":
+            print("Done!")
+            self.save()
+            exit()
+
     def pre_process(self):
-        pass
+        self.state["state"] = "Preprocessing"
+        self._recursively_preprocess_files(self.root_path)
+        self.state["state"] = "Begin Sorting"
+
 
     def load_save_file(self):
         print("Loading previous save...")
@@ -95,6 +117,48 @@ class DupeCleaner:
         self.state = previous_state
         print("Finished loading previous state")
 
+    def prepare_folders(self):
+        for file_type, _ in self.files.items():
+            if file_type != "Others":
+                self.create_directories(self.root_path + "Original/", file_type)
+                self.create_directories(self.root_path + "Duplicates/", file_type)
+            else:
+                self.create_directories(self.root_path, file_type)
+        self.state["state"] = "Begin Sorting"
+
+    def sort(self):
+        for file_type, file_dict in self.files.items():
+            for file_type, file in file_dict.items():
+                is_move_complete = False
+                next_name = 0
+                destination_path_name = file.get_destination_path_name()
+
+                while not is_move_complete:
+                    try:
+                        mid_term = "" if file_type == "Others" else "Original/"
+                        originals_dest_path = "".join([self.root_path, mid_term, destination_path_name]) 
+                        file.move(originals_dest_path)
+                        is_move_complete = True
+                    except FileExistsError:
+                        if next_name < 0:
+                            next_name += 1
+                            name, ext = destination_path_name.split(".")
+                            destination_path_name = "".join([name, f"#{next_name}#.", ext])
+                        else:
+                            next_name += 1
+                            name, _, ext = destination_path_name.split("#")
+                            destination_path_name = "#".join([name, next_name, ext])
+                    except Exception as e:
+                        print(f"Failed to move file from {file.path} to {destination_path_name}")
+                        raise e
+                
+                # If there are no duplicates, nothing happens after the split
+                name, ext = destination_path_name.split()
+                for i, dupe in enumerate(file.duplicates):
+                    dupe_path_name = "".join([self.root_path, "Duplicates/", name, f"-{i}.", ext])
+                    dupe.move(dupe_path_name)
+
+        self.state["state"] = "Sort Complete"
 
     def add_date_directories(self, file_type, year, month, day) -> None:
         """
@@ -114,7 +178,7 @@ class DupeCleaner:
             if day not in self.date_directories[file_type][year][month]:
                 self.date_directories[file_type][year][month].append(day)
 
-    def create_directories(self, file_type, parent_path) -> None:
+    def create_directories(self, parent_path, file_type) -> None:
         """
         Iterates through the pre-processed date_directories and builds directories for every
         given date
@@ -130,10 +194,7 @@ class DupeCleaner:
         with open(self.log, "w") as f:
             json.dump(data, f)
 
-    def recursively_preprocess_files(self):
-        pass
-
-    def _preprocess_files(self, path):
+    def _recursively_preprocess_files(self, path):
         """
         Recursively processes files within the current path
 
@@ -159,23 +220,75 @@ class DupeCleaner:
                 if entry.is_dir():
                     directories.append(entry.path)
 
-        # handle all directories before handling base case
+        # case 3 - handle all directories before handling base case
         if directories:
             for dir in directories:
-                self._preprocess_files(dir)
+                self._recursively_preprocess_files(dir)
 
         # base case 2
         while len(files) > 0:
             file: str = files[0]
-            if file.endswith(Image.get_allowed_formats()):
-                this_file = Image(file)
-            elif file.endswith(Video.get_allowed_formats()):
-                this_file = Video(file)
-            elif file.endswith(Text.get_allowed_formats()):
-                this_file = Text(file)
+            if file not in self.state["completed_files"]:
+                file_type = "Others"
+                if file.endswith(Image.get_allowed_formats()):
+                    this_file = Image(file)
+                    file_type = "Images"
+                elif file.endswith(Video.get_allowed_formats()):
+                    this_file = Video(file)
+                    file_type = "Videos"
+                elif file.endswith(Text.get_allowed_formats()):
+                    this_file = Text(file)
+                    file_type = "Texts"
+                else:
+                    this_file = Other(file)
+
+                this_hash = this_file.get_hash()
+                other_file = self.files[file_type].get(this_hash)
+                if other_file:
+                    # handling for duplicates
+                    self.__compare(other_file, this_file)
+                else:
+                    # If other_file is None then there is no duplicates yet
+                    self.files[file_type][this_hash] = this_file
+                
+                self.state["completed_files"].append(files.pop(0))
             else:
-                this_file = Other(file)
+                # case 4
+                files.pop(0)
+        
+        # Add this dir into the compeled_directories list, and remove all associated files from
+        # completed_files
+        self.state["completed_directories"].append(path)
+        self.__remove_completed_files_for_directory(path)
     
+    def __compare(self, preprocessed_file: File, current_file: File):
+        """
+        Logic 1: If one is has t prefix and one has f prefix, then t is the duplicate
+        Logic 2: If one is a video and one is an image, the image is a duplicate
+        Logic 3: if both have t prefix or both have f prefix then just append file2 to file 1
+        """
+        filep_t = preprocessed_file.is_thumbnail()
+        filec_t = current_file.is_thumbnail()
+        filep_v = preprocessed_file.is_video()
+        filec_v = current_file.is_video()
+
+
+        if ((filep_t and filec_t) or # If both are thumbnails
+            (filep_v and filec_v) or  # If both are videos
+            (filep_v and not filec_v) or # if the processed file is a video and the currrent file is not
+            (not filep_t and filec_t)): # if the current file is a thumbnail and the processed file is not
+            preprocessed_file.add(current_file)  
+        elif (filec_v or # If one is a video
+              filep_t): # If preprocessed file is a thumbnail and current is a file
+            current_file.swap(preprocessed_file)
+        else:
+            print(f"WARNING: unhandled case when comparing files: \n"
+                  f"Processed: t - {filep_t}, v - {filep_v} | Current: t - {filec_t}, v - {filec_v}")
+            preprocessed_file.add(current_file)
+        
+
+
+
     def __remove_completed_files_for_directory(self, dir_path):
         def not_match_dir(w):
             return dir_path not in w

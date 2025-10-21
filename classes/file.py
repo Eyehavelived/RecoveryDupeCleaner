@@ -4,7 +4,6 @@ import copy
 import json
 import os
 import re
-import shutil
 import subprocess
 from typing import Self
 
@@ -32,6 +31,7 @@ class File():
     is_bad_file: bool = False
     extension = None
     date_time: DateTime
+    destination_name: str
 
     def __init__(self, path: str):
         self.extension = path.split(".")[-1]
@@ -88,6 +88,17 @@ class File():
         if file not in self.duplicates:
             self.duplicates.append(file)
 
+    def get_destination_path_name(self):
+        """
+        assuming all dirs end with /
+        """
+        output = (
+            f"{self.date_time.year}/{self.date_time.month}/"
+            f"{self.date_time.year}{self.date_time.month}{self.date_time.day} "
+            f"{self.date_time.hour}{self.date_time.mins}{self.date_time.seconds}"
+        )
+        return output
+
     def get_hash(self) -> str:
         """
         Retrieves the hashvalue of the File
@@ -100,6 +111,18 @@ class File():
         """
         return self.is_bad_file
 
+    def is_thumbnail(self) -> bool:
+        """
+        returns True/False depending on whether this file is a thumbnail
+        """
+        return self.path.split("/")[-1][0] == "t"
+
+    def is_video(self) -> bool:
+        """
+        Returns True/False depending on whether this file is a video
+        """
+        return False
+
     @staticmethod
     def get_allowed_formats() -> list:
         return []
@@ -108,9 +131,11 @@ class File():
         """
         Moves the file and updates path property accordingly
         """
-        shutil.move(self.path, new_path)
+        os.rename(self.path, new_path)
         self.path = new_path
 
+
+    # Might not be used at all
     def rename(self, new_name) -> None:
         """
         Renames the File in the directory and updates path accordingly
@@ -159,9 +184,6 @@ class File():
         file_name = self.path.split("/")[-1]
         self.hash_value = file_name
 
-    def _is_thumbnail(self) -> bool:
-        return self.path.split("/")[-1][0] == "t"
-
     def _set_metadata(self) -> None:
         result = subprocess.run(["exiftool", "-j", self.path], capture_output=True, text=True)
         self.metadata = json.loads(result.stdout)[0]
@@ -195,6 +217,9 @@ class Video(Image):
     results across different videos. This is to cover the edge cases where the first or last 
     frame of the video are blurry or black patches from human behaviour.
     """
+    def is_video(self):
+        return True
+
     def _extract_frame(self) -> PIL.Image:
         """
         Extracts the middle frame of a video to hash and recommend for similarity comparisons
