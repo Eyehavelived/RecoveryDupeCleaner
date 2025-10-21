@@ -94,6 +94,12 @@ class File():
         """
         return self.hash_value
 
+    def is_bad(self) -> bool:
+        """
+        returns a boolean value for whether this File object has been marked as a bad file
+        """
+        return self.is_bad_file
+
     def move(self, new_path) -> None:
         """
         Moves the file and updates path property accordingly
@@ -148,12 +154,6 @@ class File():
         """
         file_name = self.path.split("/")[-1]
         self.hash_value = file_name
-
-    def is_bad(self) -> bool:
-        """
-        returns a boolean value for whether this File object has been marked as a bad file
-        """
-        return self.is_bad_file
 
     def _is_thumbnail(self) -> bool:
         return self.path.split("/")[-1][0] == "t"

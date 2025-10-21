@@ -40,11 +40,10 @@ class DupeCleaner:
     text: dict[str, File] = {}
     other: dict[str, Other] = {}
     files: dict[str, dict[str, File]] = {
-        "images": images,
-    }
-    state = {
-        "state": "",
-        "files": files
+        "Images": images,
+        "Videos": videos,
+        "Text": text,
+        "Other": other
     }
     date_directories: dict[str, dict[str, dict[str, list[str]]]] = {
         "Image": {},
@@ -53,13 +52,48 @@ class DupeCleaner:
         "Other": {},
         "File": {}
     }
+    state = {
+        "state": "",
+        "files": files,
+        "date_directories": date_directories,
+        "completed_directories": [],
+        "completed_files": []
+    }
 
     def __init__(self, root_path:str, log:str=None) -> None:
+        """
+        ToDo: Check if root_path ends with '/'
+        """
         self.root_path = root_path
         if log:
+            self.state["state"] = "Loading Progress"
             self.log = log
+            self.load_save_file()
         else:
-            self.log = root_path + "logs.json"
+            self.log = "/".join([root_path, "logs.json"])
+
+    def pre_process(self):
+        pass
+
+    def load_save_file(self):
+        print("Loading previous save...")
+        previous_state = None
+        with open(self.log, "r", encoding="utf-8") as f:
+            previous_state = json.load(f)
+
+        date_directories_str = previous_state.get("date_directories")
+        print(f'type of date_directories_str: {type(date_directories_str)}')
+        self.date_directories = json.loads(date_directories_str) if date_directories_str else self.date_directories
+
+        for key, val in previous_state["files"]:
+            file_dict = json.loads(val)
+            for hash_key, file_string in file_dict:
+                file_dict[hash_key] = File.from_dict(file_string)
+            self.state["files"][key] = file_dict
+        
+        self.state = previous_state
+        print("Finished loading previous state")
+
 
     def add_date_directories(self, file_type, year, month, day) -> None:
         """
@@ -90,7 +124,6 @@ class DupeCleaner:
                     path = Path("/".join([parent_path, year, month, day]))
                     path.mkdir(parents=True, exist_ok=True)
 
-
     def save(self):
         data = self._prepare_json()
         with open(self.log, "w") as f:
@@ -102,8 +135,9 @@ class DupeCleaner:
             output[hash_value] = file.to_dict()
     
 
-def main():
+def main(path, log_path=None):
     interrupted = False
+    cleaner = DupeCleaner(path, log_path)
 
     def handle_sigint(signum, frame):
         nonlocal interrupted
@@ -113,7 +147,8 @@ def main():
     signal.signal(signal.SIGINT, handle_sigint)
 
     while not interrupted:
-        pass
+        # Pre processing
+
 
 if __name__=="__main__":
     
