@@ -1,8 +1,9 @@
 import signal
 import os
 from pathlib import Path
-# import time
+import time
 import json
+import sys
 from classes.file import File
 
 from classes.file import Other, Video, Image, Text
@@ -76,6 +77,8 @@ class DupeCleaner:
         status = self.state["state"]
         if status == "Preprocessing":
             self.pre_process()
+        elif status == "Prepare Folders":
+            self.prepare_folders()
         elif status == "Sorting":
             self.sort()
 
@@ -96,7 +99,6 @@ class DupeCleaner:
         self.state["state"] = "Preprocessing"
         self._recursively_preprocess_files(self.root_path)
         self.state["state"] = "Begin Sorting"
-
 
     def load_save_file(self):
         print("Loading previous save...")
@@ -316,10 +318,12 @@ def main(path, log_path=None):
 
     signal.signal(signal.SIGINT, handle_sigint)
 
+    if log_path:
+        cleaner.resume()
     while not interrupted:
-        # Pre processing
-
+        cleaner.next()
 
 if __name__=="__main__":
-    
-    pass
+    path = sys.argv[1]
+    log_file = sys.argv[2] if sys.argv[2] else None
+    main(path, log_file)
