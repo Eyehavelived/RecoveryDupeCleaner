@@ -48,10 +48,10 @@ class DupeCleaner:
         "Others": other
     }
     date_directories: dict[str, dict[str, dict[str, list[str]]]] = {
-        "Image": {},
-        "Video": {},
-        "Text": {},
-        "Other": {}
+        "Images": {},
+        "Videos": {},
+        "Texts": {},
+        "Others": {}
     }
     state = {
         "state": "",
@@ -75,6 +75,7 @@ class DupeCleaner:
 
     def resume(self):
         status = self.state["state"]
+        print(status)
         if status == "Preprocessing":
             self.pre_process()
         elif status == "Prepare Folders":
@@ -85,10 +86,13 @@ class DupeCleaner:
     def next(self):
         status = self.state["state"]
         if status == "":
+            print("preprocessing...")
             self.pre_process()
-        if status == "Prepare Sorting":
+        if status == "Prepare Folders":
+            print("preparing folders...")
             self.prepare_folders()
         elif status == "Begin Sorting":
+            print("Sorting...")
             self.sort()
         elif status == "Sort Complete":
             print("Done!")
@@ -98,7 +102,8 @@ class DupeCleaner:
     def pre_process(self):
         self.state["state"] = "Preprocessing"
         self._recursively_preprocess_files(self.root_path)
-        self.state["state"] = "Begin Sorting"
+        self.state["state"] = "Prepare Folders"
+        print("preprocess done")
 
     def load_save_file(self):
         print("Loading previous save...")
@@ -121,6 +126,8 @@ class DupeCleaner:
 
     def prepare_folders(self):
         for file_type, _ in self.files.items():
+            print(f"Directories are: {self.date_directories}")
+            print(f"Creating for {file_type}...")
             if file_type != "Others":
                 self.create_directories(self.root_path + "Original/", file_type)
                 self.create_directories(self.root_path + "Duplicates/", file_type)
@@ -189,6 +196,7 @@ class DupeCleaner:
             for month, day_list in month_dict.items():
                 for day in day_list:
                     path = Path("/".join([parent_path, year, month, day]))
+                    print(f"Creating path {path}")
                     path.mkdir(parents=True, exist_ok=True)
 
     def save(self):
@@ -206,7 +214,7 @@ class DupeCleaner:
         case 3 - when this directory has folders, pre-process the folders first, then pre-process the files
         case 4 - if the current file has been pre-processed, skip.
         """
-
+        print(f"Running recursion for path:{path}")
         # base case 1
         if path in self.state["completed_directories"]:
             return
@@ -230,6 +238,7 @@ class DupeCleaner:
         # base case 2
         while len(files) > 0:
             file: str = files[0]
+            print(f"currently working on file {file}; files length is {len(files)}")
             if file not in self.state["completed_files"]:
                 file_type = "Others"
                 if file.endswith(Image.get_allowed_formats()):
@@ -262,6 +271,7 @@ class DupeCleaner:
         # completed_files
         self.state["completed_directories"].append(path)
         self.__remove_completed_files_for_directory(path)
+        print("removal complete x2")
     
     def __compare(self, preprocessed_file: File, current_file: File):
         """
@@ -292,10 +302,12 @@ class DupeCleaner:
 
 
     def __remove_completed_files_for_directory(self, dir_path):
+        print("Removing completed directories")
         def not_match_dir(w):
             return dir_path not in w
         
         self.state["completed_files"] = filter(not_match_dir, self.state["completed_files"])
+        print("removal complete")
         
 
 
@@ -322,8 +334,9 @@ def main(path, log_path=None):
         cleaner.resume()
     while not interrupted:
         cleaner.next()
+        # print("outer while loop done")
 
 if __name__=="__main__":
     path = sys.argv[1]
-    log_file = sys.argv[2] if sys.argv[2] else None
+    log_file = sys.argv[2] if len(sys.argv) > 2 else None
     main(path, log_file)

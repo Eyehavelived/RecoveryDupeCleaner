@@ -15,7 +15,7 @@ from simhash import Simhash
 from nltk.corpus import words
 
 from helpers import text_reader_helper
-from date_time import DateTime
+from classes.date_time import DateTime
 
 nltk.download("words")
 word_set = set(words.words())
@@ -160,13 +160,12 @@ class File():
 
     def _set_datetime(self) -> None:
         """
-        Modify Date = `yyyy:mm:dd HH:MM:SS`
+        example Modify Date = `2016:11:22 15:37:40+08:00`
         """
-
-        modify_date: str = self.metadata["Modify Date"]
-        modify_date.replace(" ", ":")
+        # Remove timezone from datetime
+        modify_date: str = self.metadata["FileModifyDate"].split("+")[0]
+        modify_date = modify_date.replace(" ", ":")
         self.date_time = DateTime(*modify_date.split(":"))
-
 
     def _is_correct_file_type(self, extension: str) -> bool:
         """
@@ -174,7 +173,7 @@ class File():
         """
         return extension in self.get_allowed_formats()
 
-    def _set_hash(self, contents=None) -> None:
+    def _set_hash(self) -> None:
         """
         Dummy method
         Creates hash value for similarity comparison, and sets it to the hash_value
@@ -195,17 +194,20 @@ class Image(File):
     followed by metadata analysis
     """
 
-    def _set_hash(self, contents: PIL.Image) -> None:
+    def _set_hash(self) -> None:
         """
         Generates hash value of the image
         """
-        hash_size = 8
+        with PIL.Image.open(self.path) as image:
+            self.__hash_image(image)
 
-        self.hash = str(imagehash.phash(contents, hash_size))
+    def __hash_image(self, image: PIL.Image) -> None:
+        hash_size = 8
+        self.hash_value = str(imagehash.phash(image, hash_size))
 
     @staticmethod
     def get_allowed_formats() -> list:
-        return ["ai", "dng", "gif", "heic", "ico", "jpg", "png", "psd", "tif", "webp"]
+        return ("ai", "dng", "gif", "heic", "ico", "jpg", "png", "psd", "tif", "webp")
 
 class Video(Image):
     """
@@ -238,14 +240,13 @@ class Video(Image):
 
         raise RuntimeError(f"Unable to grab frame from video file. Path: {self.path} ")
 
-    def _set_hash(self, contents=None) -> str:
+    def _set_hash(self) -> str:
         frame = self._extract_frame()
-
-        super()._set_hash(frame)
+        self.__hash_image(frame)
 
     @staticmethod
     def get_allowed_formats() -> list:
-        return ["3gp", "asf", "avi", "mov", "mp4", "wmv"]
+        return ("3gp", "asf", "avi", "mov", "mp4", "wmv")
 
 class Text(File):
     """
@@ -269,7 +270,7 @@ class Text(File):
             output.append("".join([dictionary_words[i], dictionary_words[i+1]]))
         return output
 
-    def _set_hash(self, contents=None) -> None:
+    def _set_hash(self) -> None:
         helper = text_reader_helper.TextReaderHelper()
         extracted_text = helper.read_file(self.path, self.extension)
         contents = self._extract_partially_ordered_text(extracted_text)
@@ -278,7 +279,7 @@ class Text(File):
 
     @staticmethod
     def get_allowed_formats() -> list:
-        return ["doc", "docx", "xlsx", "xls", "pdf", "txt", "xls", "xlsx", "msg"]
+        return ("doc", "docx", "xlsx", "xls", "pdf", "txt", "xls", "xlsx", "msg")
 
 class Other(File):
     """
