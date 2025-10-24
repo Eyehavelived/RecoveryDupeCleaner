@@ -93,9 +93,10 @@ class File():
         assuming all dirs end with /
         """
         output = (
-            f"{self.date_time.year}/{self.date_time.month}/"
+            f"{self.date_time.year}/{self.date_time.month}/{self.date_time.day}/"
             f"{self.date_time.year}{self.date_time.month}{self.date_time.day} "
             f"{self.date_time.hour}{self.date_time.mins}{self.date_time.seconds}"
+            f".{self.extension}"
         )
         return output
 
@@ -104,6 +105,20 @@ class File():
         Retrieves the hashvalue of the File
         """
         return self.hash_value
+    
+    def get_file_size(self) -> int:
+        file_size: list[str] = self.metadata["FileSize"].split(" ")
+        if file_size[1].lower()[0] == "b":
+            multiplier = 1
+        elif file_size[1].lower()[0] == "k":
+            multiplier = 1000
+        elif file_size[1].lower()[0] == "m":
+            multiplier = 1000000
+        elif file_size[1].lower()[0] == "g":
+            multiplier = 1000000000
+        else:
+            raise RuntimeError(f"File size larger than expected: {file_size}")
+        return float(file_size[0]) * multiplier
 
     def is_bad(self) -> bool:
         """
@@ -131,6 +146,8 @@ class File():
         """
         Moves the file and updates path property accordingly
         """
+        print(f"Moving {self.path} -> {new_path}")
+        
         os.rename(self.path, new_path)
         self.path = new_path
 

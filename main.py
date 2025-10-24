@@ -137,7 +137,7 @@ class DupeCleaner:
 
     def sort(self):
         for file_type, file_dict in self.files.items():
-            for file_type, file in file_dict.items():
+            for _, file in file_dict.items():
                 is_move_complete = False
                 next_name = 0
                 destination_path_name = file.get_destination_path_name()
@@ -162,9 +162,10 @@ class DupeCleaner:
                         raise e
                 
                 # If there are no duplicates, nothing happens after the split
-                name, ext = destination_path_name.split()
+                name, ext = destination_path_name.split(".")
+                mid_term = "" if file_type == "Others" else "Duplicates/"
                 for i, dupe in enumerate(file.duplicates):
-                    dupe_path_name = "".join([self.root_path, "Duplicates/", name, f"-{i}.", ext])
+                    dupe_path_name = "".join([self.root_path, mid_term, name, f"-{i}.", ext])
                     dupe.move(dupe_path_name)
 
         self.state["state"] = "Sort Complete"
@@ -179,7 +180,7 @@ class DupeCleaner:
         }
         """
         if self.date_directories[file_type].get(year) is None:
-            self.date_directories[year] = {}
+            self.date_directories[file_type][year] = {}
 
         if self.date_directories[file_type][year].get(month) is None:
             self.date_directories[file_type][year][month] = [day]
@@ -253,6 +254,9 @@ class DupeCleaner:
                 else:
                     this_file = Other(file)
 
+                self.add_date_directories(
+                    file_type, this_file.date_time.year, this_file.date_time.month,
+                    this_file.date_time.day)
                 this_hash = this_file.get_hash()
                 other_file = self.files[file_type].get(this_hash)
                 if other_file:
@@ -275,17 +279,28 @@ class DupeCleaner:
     
     def __compare(self, preprocessed_file: File, current_file: File):
         """
+        Logic 0: If one is significantly smaller size than the other, smaller one is duplicate
+                * 0.1 tolerance
         Logic 1: If one is has t prefix and one has f prefix, then t is the duplicate
         Logic 2: If one is a video and one is an image, the image is a duplicate
         Logic 3: if both have t prefix or both have f prefix then just append file2 to file 1
         """
+        p_file_size = preprocessed_file.get_file_size()
+        c_file_size = current_file.get_file_size()
+        filep_smaller = p_file_size < c_file_size and p_file_size * 10 < c_file_size
+        filec_smaller = c_file_size < p_file_size and c_file_size * 10 < p_file_size
+
         filep_t = preprocessed_file.is_thumbnail()
         filec_t = current_file.is_thumbnail()
         filep_v = preprocessed_file.is_video()
         filec_v = current_file.is_video()
 
-
-        if ((filep_t and filec_t) or # If both are thumbnails
+        # TODO: refactor this so it's readable
+        if filec_smaller:
+            preprocessed_file.add(current_file)
+        elif filep_smaller:
+            current_file.swap(preprocessed_file)
+        elif ((filep_t and filec_t) or # If both are thumbnails
             (filep_v and filec_v) or  # If both are videos
             (filep_v and not filec_v) or # if the processed file is a video and the currrent file is not
             (not filep_t and filec_t)): # if the current file is a thumbnail and the processed file is not
@@ -297,20 +312,15 @@ class DupeCleaner:
             print(f"WARNING: unhandled case when comparing files: \n"
                   f"Processed: t - {filep_t}, v - {filep_v} | Current: t - {filec_t}, v - {filec_v}")
             preprocessed_file.add(current_file)
-        
-
-
 
     def __remove_completed_files_for_directory(self, dir_path):
         print("Removing completed directories")
         def not_match_dir(w):
             return dir_path not in w
         
-        self.state["completed_files"] = filter(not_match_dir, self.state["completed_files"])
+        filter(not_match_dir, self.state["completed_files"])
         print("removal complete")
         
-
-
     def _prepare_json(self) -> dict:
         for file_type, dictionary in self.state["files"].items():
             for hash_value, file in dictionary.items():
