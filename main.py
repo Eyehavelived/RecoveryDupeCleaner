@@ -38,18 +38,18 @@ class DupeCleaner:
         a try-except loop till it reaches a number that works
     """
     images: dict[str, File] = {}
-    videos: dict[str, File] = {}
+    # videos: dict[str, File] = {}
     text: dict[str, File] = {}
     other: dict[str, Other] = {}
     files: dict[str, dict[str, File]] = {
         "Images": images,
-        "Videos": videos,
+        # "Videos": videos,
         "Texts": text,
         "Others": other
     }
     date_directories: dict[str, dict[str, dict[str, list[str]]]] = {
         "Images": {},
-        "Videos": {},
+        # "Videos": {},
         "Texts": {},
         "Others": {}
     }
@@ -249,7 +249,7 @@ class DupeCleaner:
                     file_type = "Images"
                 elif file.endswith(Video.get_allowed_formats()):
                     this_file = Video(file)
-                    file_type = "Videos"
+                    file_type = "Images"
                 elif file.endswith(Text.get_allowed_formats()):
                     this_file = Text(file)
                     file_type = "Texts"
