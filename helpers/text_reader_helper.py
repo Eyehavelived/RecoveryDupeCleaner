@@ -48,9 +48,8 @@ class TextReaderHelper:
                 raise RuntimeError(f'Unexpected Error occured: {e}')
         return wrapper
 
-    @staticmethod
     @error_handler
-    def read_html(path):
+    def read_html(self, path):
         """
         Reads a html file
         """
@@ -59,18 +58,16 @@ class TextReaderHelper:
 
         return html2text.html2text(html_content)
 
-    @staticmethod
     @error_handler
-    def read_txt(path):
+    def read_txt(self, path):
         """
         Reads a txt file
         """
         with open(path, "r", encoding="utf-8") as f:
             return f.read()
 
-    @staticmethod
     @error_handler
-    def read_pdf(path):
+    def read_pdf(self, path):
         """
         Reads pdf files
         """
@@ -80,27 +77,24 @@ class TextReaderHelper:
                 text += page.extract_text() or ""
         return text
 
-    @staticmethod
     @error_handler
-    def read_doc(path):
+    def read_doc(self, path):
         """
         Reads legacy microsoft word documents
         """
         doc = Document(path)
         return "\n".join([p.text for p in doc.paragraphs])
 
-    @staticmethod
     @error_handler
-    def read_msg(path):
+    def read_msg(self, path):
         """
         Reads a msg file - likely a file export of Microsoft Outlook saved emails
         """
         msg = extract_msg.Message(path)
         return msg.body or ""
 
-    @staticmethod
     @error_handler
-    def read_xls(path, extension):
+    def read_xls(self, path, extension):
         """
         Reads an excel file as a text file to hash downstream
         """

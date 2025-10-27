@@ -53,6 +53,9 @@ class File():
             return True
         else:
             return False
+        
+    def __ge__(self, other: Self):
+        return self > other or self == other
 
     def __eq__(self, other: Self):
         result = ((self.is_video() and other.is_video()) 
@@ -214,7 +217,11 @@ class File():
         Sets hash_value to the numn
         """
         # Only works with default file names from photorec
-        file_name = re.match('[tf](\d+)', self.path).group(1)
+        try:
+            file_name = re.search(r'[tf](\d+)', self.path).group(1)
+        except AttributeError as e:
+            print(f"File name = {self.path}")
+            raise e
         self.hash_value = file_name
 
     def _set_metadata(self) -> None:
