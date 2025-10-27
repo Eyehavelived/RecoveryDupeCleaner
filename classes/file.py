@@ -44,6 +44,21 @@ class File():
         self._set_hash()
         self._set_datetime()
 
+    def __gt__(self, other: Self):
+        if self.is_video() and not other.is_video():
+            return True
+        elif not self.is_thumbnail and other.is_thumbnail():
+            return True
+        elif self.get_file_size() > other.get_file_size():
+            return True
+        else:
+            return False
+
+    def __eq__(self, other: Self):
+        result = ((self.is_video() and other.is_video()) 
+                  and (not self.is_thumbnail and not other.is_thumbnail)
+                  and (self.get_file_size() == other.get_file_size()))
+        return result
 
     @classmethod
     def from_dict(cls, dictionary: dict):
@@ -195,9 +210,11 @@ class File():
         Dummy method
         Creates hash value for similarity comparison, and sets it to the hash_value
 
-        Sets hash_value to file_name as default behavior
+        photorec file names are in the format [f/t]#######.[ext]
+        Sets hash_value to the numn
         """
-        file_name = self.path.split("/")[-1]
+        # Only works with default file names from photorec
+        file_name = re.match('[tf](\d+)', self.path).group(1)
         self.hash_value = file_name
 
     def _set_metadata(self) -> None:
@@ -210,17 +227,19 @@ class Image(File):
     Object type where similarity comparisons are made primarily based on perceptual Hashing, 
     followed by metadata analysis
     """
+    # Commenting out to use base class' hash method... 
+    # TODO: Potentially refactor by removing Image and Video classes entirely
 
-    def _set_hash(self) -> None:
-        """
-        Generates hash value of the image
-        """
-        with PIL.Image.open(self.path) as image:
-            self.__hash_image(image)
+    # def _set_hash(self) -> None:
+    #     """
+    #     Generates hash value of the image
+    #     """
+    #     with PIL.Image.open(self.path) as image:
+    #         self.__hash_image(image)
 
-    def __hash_image(self, image: PIL.Image) -> None:
-        hash_size = 8
-        self.hash_value = str(imagehash.phash(image, hash_size))
+    # def __hash_image(self, image: PIL.Image) -> None:
+    #     hash_size = 8
+    #     self.hash_value = str(imagehash.phash(image, hash_size))
 
     @staticmethod
     def get_allowed_formats() -> list:
@@ -239,27 +258,27 @@ class Video(Image):
     def is_video(self):
         return True
 
-    def _extract_frame(self) -> PIL.Image:
-        """
-        Extracts the middle frame of a video to hash and recommend for similarity comparisons
-        """
-        cap = cv2.VideoCapture(self.path)
-        frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        middle_frame = frame_count // 2
-        cap.set(cv2.CAP_PROP_POS_FRAMES, middle_frame)
+    # def _extract_frame(self) -> PIL.Image:
+    #     """
+    #     Extracts the middle frame of a video to hash and recommend for similarity comparisons
+    #     """
+    #     cap = cv2.VideoCapture(self.path)
+    #     frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    #     middle_frame = frame_count // 2
+    #     cap.set(cv2.CAP_PROP_POS_FRAMES, middle_frame)
 
-        success, frame = cap.read()
-        cap.release()
-        if success:
-            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            img = PIL.Image.fromarray(frame_rgb)
-            return img
+    #     success, frame = cap.read()
+    #     cap.release()
+    #     if success:
+    #         frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    #         img = PIL.Image.fromarray(frame_rgb)
+    #         return img
 
-        raise RuntimeError(f"Unable to grab frame from video file. Path: {self.path} ")
+    #     raise RuntimeError(f"Unable to grab frame from video file. Path: {self.path} ")
 
-    def _set_hash(self) -> str:
-        frame = self._extract_frame()
-        self.__hash_image(frame)
+    # def _set_hash(self) -> str:
+    #     frame = self._extract_frame()
+    #     self.__hash_image(frame)
 
     @staticmethod
     def get_allowed_formats() -> list:
