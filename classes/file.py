@@ -74,6 +74,7 @@ class File():
         """
         Creates the class from a dictionary after parsing a json file
         """
+        cls.duplicates = []
         class_val: str = dictionary.pop("__type__")
         class_type: File = eval(class_val)
         cls.__dict__ = dictionary
@@ -113,6 +114,9 @@ class File():
             self.duplicates.append(file)
 
     def get_extension(self):
+        """
+        Returns the file's extension attribute
+        """
         return self.extension
 
     def get_destination_path_name(self):
@@ -132,8 +136,11 @@ class File():
         Retrieves the hashvalue of the File
         """
         return self.hash_value
-    
+
     def get_file_size(self) -> int:
+        """
+        Returns the file size as a single integer
+        """
         file_size: list[str] = self.metadata["FileSize"].split(" ")
         if file_size[1].lower()[0] == "b":
             multiplier = 1
@@ -167,7 +174,11 @@ class File():
 
     @staticmethod
     def get_allowed_formats() -> list:
-        return []
+        """
+        Returns a list of all allowed formats. Default File behavior returns an empty
+        tuple
+        """
+        return ()
 
     def move(self, new_path) -> None:
         """
@@ -241,9 +252,6 @@ class Image(File):
     Object type where similarity comparisons are made primarily based on perceptual Hashing, 
     followed by metadata analysis
     """
-    # Commenting out to use base class' hash method... 
-    # TODO: Potentially refactor by removing Image and Video classes entirely
-
     def set_hash(self) -> None:
         """
         Generates hash value of the image
