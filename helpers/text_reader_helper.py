@@ -10,6 +10,18 @@ import html2text
 import pdfplumber
 from docx import Document
 
+def error_handler(func):
+    """
+    Decorator to wrap file readers in a try/catch
+    """
+    def wrapper(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except FileNotFoundError as e:
+            raise FileNotFoundError(f'Failed to read file in given path: {e}')
+        except Exception as e:
+            raise RuntimeError(f'Unexpected Error occured: {e}')
+    return wrapper
 
 class TextReaderHelper:
     """
@@ -24,29 +36,15 @@ class TextReaderHelper:
         elif (extension == "xls" or extension == "xlsx"):
             return self.read_xls(path, extension)
         elif extension == "msg":
-            return self.read_msg
+            return self.read_msg(path)
         elif extension == "pdf":
-            return self.read_pdf
+            return self.read_pdf(path)
         elif extension == "txt":
-            return self.read_txt
+            return self.read_txt(path)
         elif extension == "html":
-            return self.read_html
+            return self.read_html(path)
         else:
             raise RuntimeError(f"Unexpected extension received: {extension}")
-
-    @staticmethod
-    def error_handler(func):
-        """
-        Decorator to wrap file readers in a try/catch
-        """
-        def wrapper(*args, **kwargs):
-            try:
-                func(args, kwargs)
-            except FileNotFoundError as e:
-                raise FileNotFoundError(f'Failed to read file in given path: {e}')
-            except Exception as e:
-                raise RuntimeError(f'Unexpected Error occured: {e}')
-        return wrapper
 
     @error_handler
     def read_html(self, path):
@@ -98,11 +96,16 @@ class TextReaderHelper:
         """
         Reads an excel file as a text file to hash downstream
         """
-        xls_loader = openpyxl.load_workbook if extension == "xlsx" else xlrd.open_workbook
-        workbook = xls_loader(path, data_only=True)
-        text = ""
-        for sheet in workbook:
-            for row in sheet.iter_rows(values_only=True):
-                text += " ".join([str(cell) if cell is not None else "" for cell in row]) + "\n"
-        return text
-
+        text = []
+        if extension == "xlsx":
+            workbook = openpyxl.load_workbook(path, data_only=True)
+            sheets = workbook.worksheets
+            for sheet in sheets:
+                for row in sheet.iter_rows(values_only=True):
+                    text.append(" ".join([str(cell) if cell is not None else "" for cell in row]))
+        else:
+            workbook = xlrd.open_workbook(path)
+            for sheet in workbook.sheets():
+                for row_idx in range(sheet.nrows):
+                    text.append(" ".join([str(cell) for cell in sheet.row_values(row_idx)]))
+        return "\n".join(text)

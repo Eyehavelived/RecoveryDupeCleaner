@@ -25,7 +25,6 @@ class File():
     Generic file object
     """
     metadata: dict
-    duplicates: list[Self] = []
     path: str
     hash_value: str
     is_bad_file: bool = False
@@ -40,12 +39,15 @@ class File():
         else:
             raise RuntimeError(f"Incorrect filetype {self.extension} for class \
                                {self.__class__.__name__}")
+        self.duplicates = []
         self._set_metadata()
         self._set_hash()
         self._set_datetime()
 
     def __gt__(self, other: Self):
-        if self.is_video() and not other.is_video():
+        if not self.is_bad_file and other.is_bad_file:
+            return True
+        elif self.is_video() and not other.is_video():
             return True
         elif not self.is_thumbnail and other.is_thumbnail():
             return True
@@ -53,15 +55,19 @@ class File():
             return True
         else:
             return False
-        
+
     def __ge__(self, other: Self):
         return self > other or self == other
 
     def __eq__(self, other: Self):
-        result = ((self.is_video() and other.is_video()) 
-                  and (not self.is_thumbnail and not other.is_thumbnail)
-                  and (self.get_file_size() == other.get_file_size()))
+        result = (((self.is_bad_file == other.is_bad_file) and
+                   self.is_video() == other.is_video()) and
+                   (self.is_thumbnail() == other.is_thumbnail()) and
+                   (self.get_file_size() == other.get_file_size()))
         return result
+
+    def __str__(self):
+        return self.path.split("/")[-1]
 
     @classmethod
     def from_dict(cls, dictionary: dict):
@@ -105,6 +111,9 @@ class File():
         """
         if file not in self.duplicates:
             self.duplicates.append(file)
+
+    def get_extension(self):
+        return self.extension
 
     def get_destination_path_name(self):
         """
@@ -164,8 +173,6 @@ class File():
         """
         Moves the file and updates path property accordingly
         """
-        print(f"Moving {self.path} -> {new_path}")
-        
         os.rename(self.path, new_path)
         self.path = new_path
 

@@ -96,7 +96,7 @@ class DupeCleaner:
             self.sort()
         elif status == "Sort Complete":
             print("Done!")
-            self.save()
+            # self.save()
             exit()
 
     def pre_process(self):
@@ -137,10 +137,12 @@ class DupeCleaner:
 
     def sort(self):
         for file_type, file_dict in self.files.items():
-            for _, file in file_dict.items():
+            for hash_name, file in file_dict.items():
                 is_move_complete = False
                 next_name = 0
                 destination_path_name = file.get_destination_path_name()
+
+                # print(f"{hash_name}: {str(file)} - {[str(dupe) for dupe in file.duplicates]}")
 
                 while not is_move_complete:
                     try:
@@ -161,12 +163,13 @@ class DupeCleaner:
                         print(f"Failed to move file from {file.path} to {destination_path_name}")
                         raise e
                 
-                # If there are no duplicates, nothing happens after the split
-                name, ext = destination_path_name.split(".")
-                mid_term = "" if file_type == "Others" else "Duplicates/"
-                for i, dupe in enumerate(file.duplicates):
-                    dupe_path_name = "".join([self.root_path, mid_term, name, f"-{i}.", ext])
-                    dupe.move(dupe_path_name)
+                    # If there are no duplicates, nothing happens after the split
+                    name, ext = destination_path_name.split(".")
+                    mid_term = "" if file_type == "Others" else "Duplicates/"
+                    for i, dupe in enumerate(file.duplicates):
+                        dupe: File
+                        dupe_path_name = "".join([self.root_path, mid_term, name, f"-{i}.", ext])
+                        dupe.move(dupe_path_name)
 
         self.state["state"] = "Sort Complete"
 
@@ -239,7 +242,7 @@ class DupeCleaner:
         # base case 2
         while len(files) > 0:
             file: str = files[0]
-            print(f"currently working on file {file}; files length is {len(files)}")
+            # print(f"currently working on file {file}; files length is {len(files)}")
             if "ds_store" in file.lower():
                 files.pop(0)
             elif file not in self.state["completed_files"]:
@@ -261,6 +264,7 @@ class DupeCleaner:
                     this_file.date_time.day)
                 this_hash = this_file.get_hash()
                 other_file = self.files[file_type].get(this_hash)
+
                 if other_file:
                     # handling for duplicates
                     self.__compare(other_file, this_file)
@@ -286,7 +290,7 @@ class DupeCleaner:
         if preprocessed_file >= current_file:
             preprocessed_file.add(current_file)
         else:
-            current_file.swap(preprocessed_file)
+            preprocessed_file.swap(current_file)
 
     # def __compare(self, preprocessed_file: File, current_file: File):
     #     """
@@ -355,7 +359,6 @@ def main(path, log_path=None):
         cleaner.resume()
     while not interrupted:
         cleaner.next()
-        # print("outer while loop done")
 
 if __name__=="__main__":
     path = sys.argv[1]
