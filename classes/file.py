@@ -41,11 +41,11 @@ class File():
                                {self.__class__.__name__}")
         self.duplicates = []
         self._set_metadata()
-        self._set_hash()
+        self.set_hash()
         self._set_datetime()
 
     def __gt__(self, other: Self):
-        if not self.is_bad_file and other.is_bad_file:
+        if not self.is_bad() and other.is_bad():
             return True
         elif self.is_video() and not other.is_video():
             return True
@@ -215,7 +215,7 @@ class File():
         """
         return extension in self.get_allowed_formats()
 
-    def _set_hash(self) -> None:
+    def set_hash(self) -> None:
         """
         Dummy method
         Creates hash value for similarity comparison, and sets it to the hash_value
@@ -244,16 +244,20 @@ class Image(File):
     # Commenting out to use base class' hash method... 
     # TODO: Potentially refactor by removing Image and Video classes entirely
 
-    # def _set_hash(self) -> None:
-    #     """
-    #     Generates hash value of the image
-    #     """
-    #     with PIL.Image.open(self.path) as image:
-    #         self.__hash_image(image)
+    def set_hash(self) -> None:
+        """
+        Generates hash value of the image
+        """
+        with PIL.Image.open(self.path) as image:
+            self._hash_image(image)
 
-    # def __hash_image(self, image: PIL.Image) -> None:
-    #     hash_size = 8
-    #     self.hash_value = str(imagehash.phash(image, hash_size))
+    def _hash_image(self, image: PIL.Image) -> None:
+        try:
+            hash_size = 8
+            self.hash_value = str(imagehash.phash(image, hash_size))
+        except OSError:
+            self.is_bad_file = True
+            super().set_hash()
 
     @staticmethod
     def get_allowed_formats() -> list:
@@ -272,27 +276,27 @@ class Video(Image):
     def is_video(self):
         return True
 
-    # def _extract_frame(self) -> PIL.Image:
-    #     """
-    #     Extracts the middle frame of a video to hash and recommend for similarity comparisons
-    #     """
-    #     cap = cv2.VideoCapture(self.path)
-    #     frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    #     middle_frame = frame_count // 2
-    #     cap.set(cv2.CAP_PROP_POS_FRAMES, middle_frame)
+    def _extract_frame(self) -> PIL.Image:
+        """
+        Extracts the middle frame of a video to hash and recommend for similarity comparisons
+        """
+        cap = cv2.VideoCapture(self.path)
+        frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        middle_frame = frame_count // 2
+        cap.set(cv2.CAP_PROP_POS_FRAMES, middle_frame)
 
-    #     success, frame = cap.read()
-    #     cap.release()
-    #     if success:
-    #         frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    #         img = PIL.Image.fromarray(frame_rgb)
-    #         return img
+        success, frame = cap.read()
+        cap.release()
+        if success:
+            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            img = PIL.Image.fromarray(frame_rgb)
+            return img
 
-    #     raise RuntimeError(f"Unable to grab frame from video file. Path: {self.path} ")
+        raise RuntimeError(f"Unable to grab frame from video file. Path: {self.path} ")
 
-    # def _set_hash(self) -> str:
-    #     frame = self._extract_frame()
-    #     self.__hash_image(frame)
+    def set_hash(self) -> str:
+        frame = self._extract_frame()
+        self._hash_image(frame)
 
     @staticmethod
     def get_allowed_formats() -> list:
@@ -320,7 +324,7 @@ class Text(File):
             output.append("".join([dictionary_words[i], dictionary_words[i+1]]))
         return output
 
-    def _set_hash(self) -> None:
+    def set_hash(self) -> None:
         helper = text_reader_helper.TextReaderHelper()
         extracted_text = helper.read_file(self.path, self.extension)
         contents = self._extract_partially_ordered_text(extracted_text)

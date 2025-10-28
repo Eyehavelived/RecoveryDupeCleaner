@@ -97,6 +97,7 @@ class DupeCleaner:
         elif status == "Sort Complete":
             print("Done!")
             # self.save()
+            self.remove_empty_folders(self.root_path)
             exit()
 
     def pre_process(self):
@@ -129,8 +130,9 @@ class DupeCleaner:
             print(f"Directories are: {self.date_directories}")
             print(f"Creating for {file_type}...")
             if file_type != "Others":
-                self.create_directories(self.root_path + "Original/", file_type)
+                self.create_directories(self.root_path + "Originals/", file_type)
                 self.create_directories(self.root_path + "Duplicates/", file_type)
+                self.create_directories(self.root_path + "Bad Files/", file_type)
             else:
                 self.create_directories(self.root_path, file_type)
         self.state["state"] = "Begin Sorting"
@@ -146,7 +148,12 @@ class DupeCleaner:
 
                 while not is_move_complete:
                     try:
-                        mid_term = "" if file_type == "Others" else "Original/"
+                        if file.is_bad():
+                            mid_term = "Bad Files/"
+                        elif file_type == "Others":
+                            mid_term = ""
+                        else:
+                            mid_term = "Originals/"
                         originals_dest_path = "".join([self.root_path, mid_term, destination_path_name]) 
                         file.move(originals_dest_path)
                         is_move_complete = True
@@ -165,9 +172,16 @@ class DupeCleaner:
                 
                     # If there are no duplicates, nothing happens after the split
                     name, ext = destination_path_name.split(".")
-                    mid_term = "" if file_type == "Others" else "Duplicates/"
                     for i, dupe in enumerate(file.duplicates):
                         dupe: File
+
+                        if dupe.is_bad():
+                            mid_term = "Bad Files/"
+                        elif file_type == "Others":
+                            mid_term = ""
+                        else:
+                            mid_term = "Duplicates/"
+
                         dupe_path_name = "".join([self.root_path, mid_term, name, f"-{i}.", ext])
                         dupe.move(dupe_path_name)
 
@@ -292,42 +306,6 @@ class DupeCleaner:
         else:
             preprocessed_file.swap(current_file)
 
-    # def __compare(self, preprocessed_file: File, current_file: File):
-    #     """
-    #     Logic 0: If one is significantly smaller size than the other, smaller one is duplicate
-    #             * 0.1 tolerance
-    #     Logic 1: If one is has t prefix and one has f prefix, then t is the duplicate
-    #     Logic 2: If one is a video and one is an image, the image is a duplicate
-    #     Logic 3: if both have t prefix or both have f prefix then just append file2 to file 1
-    #     """
-    #     p_file_size = preprocessed_file.get_file_size()
-    #     c_file_size = current_file.get_file_size()
-    #     filep_smaller = p_file_size < c_file_size and p_file_size * 10 < c_file_size
-    #     filec_smaller = c_file_size < p_file_size and c_file_size * 10 < p_file_size
-
-    #     filep_t = preprocessed_file.is_thumbnail()
-    #     filec_t = current_file.is_thumbnail()
-    #     filep_v = preprocessed_file.is_video()
-    #     filec_v = current_file.is_video()
-
-    #     # TODO: refactor this so it's readable
-    #     if filec_smaller:
-    #         preprocessed_file.add(current_file)
-    #     elif filep_smaller:
-    #         current_file.swap(preprocessed_file)
-    #     elif ((filep_t and filec_t) or # If both are thumbnails
-    #         (filep_v and filec_v) or  # If both are videos
-    #         (filep_v and not filec_v) or # if the processed file is a video and the currrent file is not
-    #         (not filep_t and filec_t)): # if the current file is a thumbnail and the processed file is not
-    #         preprocessed_file.add(current_file)  
-    #     elif (filec_v or # If one is a video
-    #           filep_t): # If preprocessed file is a thumbnail and current is a file
-    #         current_file.swap(preprocessed_file)
-    #     else:
-    #         print(f"WARNING: unhandled case when comparing files: \n"
-    #               f"Processed: t - {filep_t}, v - {filep_v} | Current: t - {filec_t}, v - {filec_v}")
-    #         preprocessed_file.add(current_file)
-
     def __remove_completed_files_for_directory(self, dir_path):
         print("Removing completed directories")
         def not_match_dir(w):
@@ -342,6 +320,16 @@ class DupeCleaner:
                 dictionary[hash_value] = file.to_dict()
         
         return self.state
+    
+    def remove_empty_folders(self, path):
+        print("Removing empty directories...")
+        # Walk the directory tree from bottom to top
+        for dirpath, dirnames, _ in os.walk(path, topdown=False):
+            for dirname in dirnames:
+                full_path = os.path.join(dirpath, dirname)
+                # If the directory is empty, remove it
+                if not os.listdir(full_path):
+                    os.rmdir(full_path)
     
 
 def main(path, log_path=None):
