@@ -1,6 +1,4 @@
 import typing
-
-import copy
 import json
 import os
 import re
@@ -68,43 +66,6 @@ class File():
 
     def __str__(self):
         return self.path.split("/")[-1]
-
-    @classmethod
-    def from_dict(cls, dictionary: dict):
-        """
-        Creates the class from a dictionary after parsing a json file
-        """
-        cls.duplicates = []
-        class_val: str = dictionary.pop("__type__")
-        class_type: File = eval(class_val)
-        cls.__dict__ = dictionary
-
-        # In theory, each child in the duplicate list should not have anything in their own
-        # duplicate list, so there should be no infinite loops occuring
-        for i, child in enumerate(cls.duplicates):
-            cls.duplicates[i] = class_type.from_dict(child)
-
-        # convert dictionary values of date time to DateTime object
-        cls.date_time = DateTime.from_dict(cls.date_time)
-
-        return cls
-
-    def to_dict(self) -> dict:
-        """
-        Returns a dictionary version of itself, to be json-fied
-        """
-        output = copy.deepcopy(self.__dict__)
-        output["__type__"] = self.__class__
-
-        # In theory, each child in the duplicate list should not have anything in their own
-        # duplicate list, so there should be no infinite loops occuring
-        for i, child in enumerate(self.duplicates):
-            output["duplicates"][i] = child.to_dict()
-
-        # Change date_time object to dictionary
-        output["date_time"] = output["date_time"].to_dict()
-
-        return output
 
     def add(self, file: Self) -> None:
         """
@@ -238,11 +199,15 @@ class File():
         try:
             file_name = re.search(r'[tf](\d+)', self.path).group(1)
         except AttributeError as e:
-            print(f"File name = {self.path}")
-            raise e
-        self.hash_value = file_name
+            file_name = self.path
+            raise Warning(e) from e
+        finally:
+            self.hash_value = file_name
 
     def _set_metadata(self) -> None:
+        """
+        Set the File's metadata to the actual file's metadata
+        """
         result = subprocess.run(["exiftool", "-j", self.path], capture_output=True, text=True)
         self.metadata = json.loads(result.stdout)[0]
 

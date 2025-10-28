@@ -1,8 +1,6 @@
 import signal
 import os
 from pathlib import Path
-import time
-import json
 import sys
 from classes.file import File
 
@@ -61,29 +59,18 @@ class DupeCleaner:
         "completed_files": []
     }
 
-    def __init__(self, root_path:str, log:str=None) -> None:
+    def __init__(self, root_path:str) -> None:
         """
         ToDo: Check if root_path ends with '/'
         """
         self.root_path = root_path
-        if log:
-            self.state["state"] = "Loading Progress"
-            self.log = log
-            self.load_save_file()
-        else:
-            self.log = "/".join([root_path, "logs.json"])
-
-    def resume(self):
-        status = self.state["state"]
-        print(status)
-        if status == "Preprocessing":
-            self.pre_process()
-        elif status == "Prepare Folders":
-            self.prepare_folders()
-        elif status == "Sorting":
-            self.sort()
 
     def next(self):
+        """
+        Treats the class as a state machine and handles it accordingly
+        This is an artefact of trying to implement it with a save state that can be interrupted
+        and continue where it previously left off
+        """
         status = self.state["state"]
         if status == "":
             print("preprocessing...")
@@ -96,7 +83,6 @@ class DupeCleaner:
             self.sort()
         elif status == "Sort Complete":
             print("Done!")
-            # self.save()
             self.remove_empty_folders(self.root_path)
             exit()
 
@@ -106,26 +92,10 @@ class DupeCleaner:
         self.state["state"] = "Prepare Folders"
         print("preprocess done")
 
-    def load_save_file(self):
-        print("Loading previous save...")
-        previous_state = None
-        with open(self.log, "r", encoding="utf-8") as f:
-            previous_state = json.load(f)
-
-        date_directories_str = previous_state.get("date_directories")
-        print(f'type of date_directories_str: {type(date_directories_str)}')
-        self.date_directories = json.loads(date_directories_str) if date_directories_str else self.date_directories
-
-        for key, val in previous_state["files"].items():
-            file_dict = json.loads(val)
-            for hash_key, file_string in file_dict.items():
-                file_dict[hash_key] = File.from_dict(file_string)
-            self.state["files"][key] = file_dict
-        
-        self.state = previous_state
-        print("Finished loading previous state")
-
     def prepare_folders(self):
+        """
+        Prepares folders for the sorting process
+        """
         for file_type, _ in self.files.items():
             print(f"Directories are: {self.date_directories}")
             print(f"Creating for {file_type}...")
@@ -138,8 +108,12 @@ class DupeCleaner:
         self.state["state"] = "Begin Sorting"
 
     def sort(self):
+        """
+        Sorts out original files and duplicate files into folders based on their
+        Originals' modified dates
+        """
         for file_type, file_dict in self.files.items():
-            for hash_name, file in file_dict.items():
+            for _, file in file_dict.items():
                 is_move_complete = False
                 next_name = 0
                 destination_path_name = file.get_destination_path_name()
@@ -154,7 +128,9 @@ class DupeCleaner:
                             mid_term = ""
                         else:
                             mid_term = "Originals/"
-                        originals_dest_path = "".join([self.root_path, mid_term, destination_path_name]) 
+                        originals_dest_path = "".join([self.root_path,
+                                                       mid_term,
+                                                       destination_path_name])
                         file.move(originals_dest_path)
                         is_move_complete = True
                     except FileExistsError:
@@ -169,7 +145,7 @@ class DupeCleaner:
                     except Exception as e:
                         print(f"Failed to move file from {file.path} to {destination_path_name}")
                         raise e
-                
+
                     # If there are no duplicates, nothing happens after the split
                     name, ext = destination_path_name.split(".")
                     for i, dupe in enumerate(file.duplicates):
@@ -189,8 +165,8 @@ class DupeCleaner:
 
     def add_date_directories(self, file_type, year, month, day) -> None:
         """
-        Iteratively creates a nested dictionary of all years, months and days that need to be created as
-        directories
+        Iteratively creates a nested dictionary of all years, months and days that need 
+        to be created as directories
         e.g.
         date_directories["2021"] = {
             "01": ["23" ,"24", "25"]
@@ -217,26 +193,23 @@ class DupeCleaner:
                     print(f"Creating path {path}")
                     path.mkdir(parents=True, exist_ok=True)
 
-    def save(self):
-        data = self._prepare_json()
-        with open(self.log, "w") as f:
-            json.dump(data, f)
-
     def _recursively_preprocess_files(self, path):
         """
         Recursively processes files within the current path
 
-        Base case 1 - when this directory has been pre-processed before in the save state, skip it entirely
+        Base case 1 - when this directory has been pre-processed before in the save state, 
+            skip it entirely
+            TODO: determine if Base case 1 can be deleted
         Base case 2 - when this directory has no folders
 
-        case 3 - when this directory has folders, pre-process the folders first, then pre-process the files
+        case 3 - when this directory has folders, pre-process the folders first, 
+            then pre-process the files
         case 4 - if the current file has been pre-processed, skip.
         """
         print(f"Running recursion for path:{path}")
         # base case 1
         if path in self.state["completed_directories"]:
             return
-
 
         directories = []
         files = []
@@ -250,8 +223,8 @@ class DupeCleaner:
 
         # case 3 - handle all directories before handling base case
         if directories:
-            for dir in directories:
-                self._recursively_preprocess_files(dir)
+            for directory in directories:
+                self._recursively_preprocess_files(directory)
 
         # base case 2
         while len(files) > 0:
@@ -285,18 +258,18 @@ class DupeCleaner:
                 else:
                     # If other_file is None then there is no duplicates yet
                     self.files[file_type][this_hash] = this_file
-                
+
                 self.state["completed_files"].append(files.pop(0))
             else:
                 # case 4
                 files.pop(0)
-        
+
         # Add this dir into the compeled_directories list, and remove all associated files from
         # completed_files
         self.state["completed_directories"].append(path)
         self.__remove_completed_files_for_directory(path)
         print("removal complete x2")
-    
+
     def __compare(self, preprocessed_file: File, current_file: File):
         """
         Compares the two files based on File's inequality attributes
@@ -310,45 +283,37 @@ class DupeCleaner:
         print("Removing completed directories")
         def not_match_dir(w):
             return dir_path not in w
-        
+
         filter(not_match_dir, self.state["completed_files"])
         print("removal complete")
-        
-    def _prepare_json(self) -> dict:
-        for file_type, dictionary in self.state["files"].items():
-            for hash_value, file in dictionary.items():
-                dictionary[hash_value] = file.to_dict()
-        
+
         return self.state
-    
+
     def remove_empty_folders(self, path):
+        """
+        Walk the directory tree from bottom to top and remove empty folders
+        TODO: Create folder directories more efficiently so that these repeated steps are not
+              necessary
+        """
         print("Removing empty directories...")
-        # Walk the directory tree from bottom to top
         for dirpath, dirnames, _ in os.walk(path, topdown=False):
             for dirname in dirnames:
                 full_path = os.path.join(dirpath, dirname)
                 # If the directory is empty, remove it
                 if not os.listdir(full_path):
                     os.rmdir(full_path)
-    
 
-def main(path, log_path=None):
+
+def main(path):
+    """
+    Runs the main code
+    """
     interrupted = False
-    cleaner = DupeCleaner(path, log_path)
+    cleaner = DupeCleaner(path)
 
-    def handle_sigint(signum, frame):
-        nonlocal interrupted
-        print("\nSIGINT received, saving progress before terminating...")
-        interrupted = True
-
-    signal.signal(signal.SIGINT, handle_sigint)
-
-    if log_path:
-        cleaner.resume()
     while not interrupted:
         cleaner.next()
 
 if __name__=="__main__":
     path = sys.argv[1]
-    log_file = sys.argv[2] if len(sys.argv) > 2 else None
-    main(path, log_file)
+    main(path)
